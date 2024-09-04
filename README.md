@@ -11,4 +11,14 @@ The installation script sets up the MDB environment by installing necessary pack
 To download and run the installation script, use the following command:
 
 ```bash
-curl -fsSL https://github.com/R-Samir-Bhuiyan-A/mdb_install/blob/main/install.sh | sudo bash
+curl -fsSL https://github.com/R-Samir-Bhuiyan-A/mdb_install/releases/download/install/install.sh | sudo bash
+
+
+
+### Download and Run the uninstallation Script
+
+To download and run the uninstallation script, use the following command:
+
+```bash
+curl -fsSL https://github.com/R-Samir-Bhuiyan-A/mdb_install/releases/download/install/install.sh | sudo bash
+

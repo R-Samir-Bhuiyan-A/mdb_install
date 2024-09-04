@@ -12,6 +12,7 @@ To download and run the installation script, use the following command:
 
 ```bash
 curl -fsSL https://github.com/R-Samir-Bhuiyan-A/mdb_install/releases/download/install/install.sh | sudo bash
+```
 
 
 
@@ -21,4 +22,5 @@ To download and run the uninstallation script, use the following command:
 
 ```bash
 curl -fsSL https://github.com/R-Samir-Bhuiyan-A/mdb_install/releases/download/install/install.sh | sudo bash
+```
 

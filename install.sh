@@ -1,94 +1,124 @@
 #!/bin/bash
 
-# Check if the script is run as root
-if [[ $EUID -ne 0 ]]; then
-   echo "This script must be run as root" 1>&2
-   exit 1
-fi
-
 # Function to install required packages
 install_packages() {
     echo "Installing required packages..."
-    apt update
-    apt install -y unzip curl nginx certbot python3-certbot-nginx
+    sudo apt update
+    sudo apt install -y zip unzip curl nginx certbot python3-certbot-nginx
 }
 
-# Function to install or update fnm
-install_fnm() {
-    if ! command -v fnm &> /dev/null; then
-        echo "Installing fnm..."
-        curl -fsSL https://fnm.vercel.app/install | bash
-        source ~/.bashrc
-    else
-        echo "fnm is already installed."
-    fi
-}
-
-# Function to install a specific Node.js version
+# Function to install a specific Node.js version from pre-built binaries
 install_node() {
     local version=$1
-    echo "Installing Node.js version $version..."
-    fnm install "$version" --latest
-    fnm use "$version"
+    local url
+    local tarball
+
+    case "$version" in
+        20)
+            url="https://nodejs.org/dist/v20.17.0/node-v20.17.0-linux-x64.tar.xz"
+            tarball="node-v20.17.0-linux-x64.tar.xz"
+            ;;
+        21)
+            url="https://nodejs.org/dist/v21.7.3/node-v21.7.3-linux-x64.tar.xz"
+            tarball="node-v21.7.3-linux-x64.tar.xz"
+            ;;
+        22)
+            url="https://nodejs.org/dist/v22.8.0/node-v22.8.0-linux-x64.tar.xz"
+            tarball="node-v22.8.0-linux-x64.tar.xz"
+            ;;
+        *)
+            echo "Invalid Node.js version."
+            exit 1
+            ;;
+    esac
+
+    echo "Downloading Node.js version $version..."
+    curl -L -o "/tmp/$tarball" "$url"
+
+    echo "Extracting Node.js..."
+    sudo tar -C /usr/local --strip-components=1 -xJf "/tmp/$tarball"
+
+    # Verify the installation
+    echo "Verifying Node.js version:"
+     -v
+    echo "Verifying npm version:"
+    /usr/local/bin/npm -v
 }
 
-# Prompt user for Node.js version
-echo "Choose the Node.js version to install (20, 21, or 22):"
-read -r node_version
+# Ensure the script is run as root
+if [ "$(id -u)" -ne "0" ]; then
+    echo "This script must be run as root. Exiting."
+    exit 1
+fi
 
-case "$node_version" in
-    20|21|22)
-        install_node "$node_version"
-        ;;
-    *)
-        echo "Invalid choice. Exiting."
-        exit 1
-        ;;
-esac
+# Install required packages
+install_packages
 
-# Verify the installed Node.js and npm versions
-echo "Verifying Node.js version:"
-node -v
-echo "Verifying npm version:"
-npm -v
+# Prompt user to skip Node.js installation
+echo "Do you want to skip Node.js installation? (yes/no):"
+read -r skip_node_install
+
+if [ "$skip_node_install" != "yes" ]; then
+    # Prompt user for Node.js version
+    echo "Choose the Node.js version to install (20, 21, or 22):"
+    read -r node_version
+
+    # Install the chosen Node.js version
+    install_node "$node_version"
+fi
 
 # Create the directory /etc/mdb if it does not exist
-echo "Creating directory /etc/mdb if it does not exist..."
-mkdir -p /etc/mdb/
+echo "Creating /etc/mdb directory..."
+sudo mkdir -p /etc/mdb/
 
 # Download and unzip the MDB.zip file
 echo "Downloading MDB.zip..."
 curl -L -o /tmp/MDB.zip https://github.com/R-Samir-Bhuiyan-A/minecraft-kit-bot/releases/download/mdb2.0/MDB.zip
 
 echo "Unzipping MDB.zip to /etc/mdb..."
-unzip -o /tmp/MDB.zip -d /etc/mdb/
+sudo unzip /tmp/MDB.zip -d /etc/mdb/ || { echo "Unzip failed. Ensure unzip is installed."; exit 1; }
 
 # Prompt user for .env file values
-read -p "Enter IP (default: 6b6t.org): " ip
+echo "Enter IP (default: 6b6t.org):"
+read -r ip
 ip=${ip:-6b6t.org}
 
-read -p "Enter PORT (default: 25565): " port
+echo "Enter PORT (default: 25565):"
+read -r port
 port=${port:-25565}
 
-read -p "Enter BOTNAME (default: changeme_mdb): " botname
+echo "Enter BOTNAME (default: changeme_mdb):"
+read -r botname
 botname=${botname:-changeme_mdb}
 
-read -p "Enter PASSWORD (default: changeme_mdb): " password
+echo "Enter PASSWORD (default: changeme_mdb):"
+read -r password
 password=${password:-changeme_mdb}
 
-read -p "Enter VERSION (default: 1.17): " version
+echo "Enter VERSION (default: 1.17):"
+read -r version
 version=${version:-1.17}
 
-read -p "Enter SERVER_PORT (default: 8081): " server_port
+echo "Enter SERVER_PORT (default: 8081):"
+read -r server_port
 server_port=${server_port:-8081}
 
-read -p "Enter WS_PORT (default: 3000): " ws_port
+echo "Enter WS_PORT (default: 3000):"
+read -r ws_port
 ws_port=${ws_port:-3000}
+
+echo "Enter UI USERNAME (default: admin):"
+read -r ui_username
+ui_username=${ui_username:-admin}
+
+echo "Enter UI PASSWORD (default: password):"
+read -r botname
+ui_password=${ui_password:-password}
 
 # Update .env file
 echo "Updating .env file..."
 env_file="/etc/mdb/.env"
-tee "$env_file" > /dev/null <<EOL
+sudo tee "$env_file" > /dev/null <<EOL
 IP=$ip
 PORT=$port
 BOTNAME=$botname
@@ -96,22 +126,43 @@ PASSWORD=$password
 VERSION=$version
 SERVER_PORT=$server_port
 WS_PORT=$ws_port
+UI_USER=$ui_username
+UI_PASSWORD=$ui_password
 EOL
 
 # Make everything executable and set permissions
 echo "Setting permissions..."
-chmod -R +x /etc/mdb/
-chown -R root:root /etc/mdb/
+sudo chmod -R +x /etc/mdb/
+sudo chown -R root:root /etc/mdb/
 
 # Create the systemd service files
-node_path=$(which node)
+node_path="/usr/local/bin/node"
 service_file_mdbr="/etc/systemd/system/mdbr.service"
 service_file_mdb="/etc/systemd/system/mdb.service"
 
 # mdbr.service file
-tee "$service_file_mdbr" > /dev/null <<EOL
+sudo tee "$service_file_mdbr" > /dev/null <<EOL
 [Unit]
-Description=Mineflayer delivery bot API daemon
+Description=Mineflayer delivery bot api demon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/etc/mdb/
+ExecStart=${node_path} /etc/mdb/api.js
+Restart=always
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# mdb.service file
+sudo tee "$service_file_mdb" > /dev/null <<EOL
+[Unit]
+Description=Mineflayer delivery bot panel
 After=network.target
 
 [Service]
@@ -127,32 +178,18 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 EOL
 
-# mdb.service file
-tee "$service_file_mdb" > /dev/null <<EOL
-[Unit]
-Description=Mineflayer delivery bot panel
-After=network.target
-
-[Service]
-Type=simple
-User=root
-Group=root
-WorkingDirectory=/etc/mdb/
-ExecStart=${node_path} /etc/mdb/panel.js
-Restart=always
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-EOL
-
 # Configure nginx
-read -p "Enter domain name (leave blank for no SSL): " domain
+echo "Enter domain name (leave blank for no SSL):"
+read -r domain
+
+if [ -z "$domain" ]; then
+    domain="localhost"
+fi
 
 nginx_conf="/etc/nginx/sites-available/mdb.conf"
-if [ -n "$domain" ]; then
+if [ "$domain" != "localhost" ]; then
     echo "Configuring nginx with SSL for domain: $domain"
-    tee "$nginx_conf" > /dev/null <<EOL
+    sudo tee "$nginx_conf" > /dev/null <<EOL
 # Redirect HTTPS to HTTP
 server {
     listen 443 ssl;
@@ -174,7 +211,7 @@ server {
     server_name $domain;
 
     location / {
-        proxy_pass http://localhost:\$(grep SERVER_PORT $env_file | cut -d '=' -f 2);
+        proxy_pass http://localhost:${server_port};
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -185,16 +222,16 @@ EOL
 
     # Install SSL certificates using Certbot
     echo "Installing SSL certificates..."
-    certbot --nginx -d "$domain"
+    sudo certbot --nginx -d "$domain"
 else
-    echo "Configuring nginx without SSL"
-    tee "$nginx_conf" > /dev/null <<EOL
+    echo "Configuring nginx without SSL for localhost"
+    sudo tee "$nginx_conf" > /dev/null <<EOL
 server {
     listen 80;
-    server_name dlm.lol;
+    server_name $domain;
 
     location / {
-        proxy_pass http://localhost:\$(grep SERVER_PORT $env_file | cut -d '=' -f 2);
+        proxy_pass http://localhost:${server_port};
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -205,15 +242,19 @@ EOL
 fi
 
 # Enable the new nginx configuration and restart nginx
-ln -sf /etc/nginx/sites-available/mdb.conf /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/mdb.conf /etc/nginx/sites-enabled/
 echo "Restarting nginx..."
-systemctl restart nginx
+sudo systemctl restart nginx
+
+sudo cd /etc/mdb/
+sudo npm install
+
 
 # Reload systemd and start the new services
-systemctl daemon-reload
-systemctl start mdbr
-systemctl enable mdbr
-systemctl start mdb
-systemctl enable mdb
+sudo systemctl daemon-reload
+sudo systemctl start mdbr
+sudo systemctl enable mdbr
+sudo systemctl start mdb
+sudo systemctl enable mdb
 
 echo "Setup completed successfully."
